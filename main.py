@@ -124,6 +124,32 @@ class AddressBook(UserDict):
     def save_to_disk(self, file_path):
         with open(file_path, 'wb') as file:
             pickle.dump(self.data, file)
+            
+    def add(self, name, phones, birthday=None):
+        record = Record(name, birthday)
+        for phone in phones:
+            record.add_phone(phone)
+        self.add_record(record)
+
+    def change(self, name, old_phone, new_phone):
+        record = self.find(name)
+        if record:
+            record.edit_phone(old_phone, new_phone)
+        else:
+            raise ValueError("Contact not found")
+
+    def phone(self, name):
+        record = self.find(name)
+        if record:
+            return [str(phone) for phone in record.phones]
+        else:
+            return None
+
+    def find(self, name):
+        return self.data.get(name)
+
+    def show_all(self):
+        return list(self.data.values())
 
     @classmethod
     def load_from_disk(cls, file_path):
@@ -144,22 +170,17 @@ class AddressBook(UserDict):
 
 address_book = AddressBook()
 
-contact1 = Record("John Doe")
-contact1.add_phone("1234567890")
-contact1.set_birthday("1990-01-01")
-address_book.add_record(contact1)
+phones = ["1112223333", "4445556666"]
+address_book.add("Jane Smith", phones, "1995-12-12")
 
-contact2 = Record("Alice Smith")
-contact2.add_phone("9876543210")
-contact2.add_phone("5555555555")
-contact2.set_birthday("1985-05-05")
-address_book.add_record(contact2)
+address_book.change("Jane Smith", "1112223333", "7778889999")
 
-address_book.save_to_disk('address_book_data.pkl')
+print(address_book.phone("Jane Smith"))
 
-restored_address_book = AddressBook.load_from_disk('address_book_data.pkl')
+result = address_book.find("Alice Smith")
+if result:
+    print(f"Found contact: {result.name} - {result.phones}")
 
-query = "John"  
-results = restored_address_book.search_contacts(query)
-for result in results:
-    print(result.name, result.phones)
+all_contacts = address_book.show_all()
+for contact in all_contacts:
+    print(contact.name, contact.phones)
