@@ -1,186 +1,183 @@
-import pickle
-from collections import UserDict
-from datetime import datetime
+from classes import *
 
-class Field:
-    def __init__(self, value):
-        if not self.is_valid(value):
-            raise ValueError("Invalid value")
-        self.value = value
-
-    def __str__(self):
-        return str(self.value)
-
-    def is_valid(self, value):
-        return True
-
-class Name(Field):
-    pass
-
-class Phone(Field):
-    def is_valid(self, value):
-        return len(str(value)) == 10 and str(value).isdigit()
-
-    @property
-    def value(self):
-        return self._value
-
-    @value.setter
-    def value(self, new_value):
-        if self.is_valid(new_value):
-            self._value = new_value
-        else:
-            raise ValueError("Invalid phone number")
-
-class Birthday(Field):
-    def is_valid(self, value):
+def input_error(func):
+    def wrapper(*args, **kwargs):
         try:
-            datetime.strptime(value, '%Y-%m-%d')
-            return True
-        except ValueError:
-            return False
+            return func(*args, **kwargs)
+        except KeyError as e:
+            return f"Contact {e.args[0]} not found."
+        except ValueError as e:
+            return str(e)
+        except IndexError:
+            return "Insufficient information provided."
+    return wrapper
 
-    @property
-    def value(self):
-        return self._value
 
-    @value.setter
-    def value(self, new_value):
-        if self.is_valid(new_value):
-            self._value = new_value
+@input_error
+def saving(data, dict_user):
+    if len(data) == 2 and data[0].isalpha():
+        name, phone = data
+        if name not in dict_user:  
+            dict_user[name] = phone
+            return f"Contact added."
         else:
-            raise ValueError("Invalid date format")
+            return f"Contact {name} already exists."
+    else:
+        return "Invalid data provided."
 
-class Record:
-    def __init__(self, name, birthday=None):
-        self.name = Name(name)
-        self.phones = []
-        self.birthday = None
-        if birthday:
-            self.set_birthday(birthday)
 
-    def add_phone(self, phone):
-        new_phone = Phone(phone)
-        self.phones.append(new_phone)
-
-    def remove_phone(self, phone):
-        for p in self.phones:
-            if str(p.value) == str(phone):
-                self.phones.remove(p)
-                break
-
-    def edit_phone(self, old_phone, new_phone):
-        phone_to_edit = self.find_phone(old_phone)
-        if phone_to_edit:
-            phone_to_edit.value = new_phone
+@input_error
+def change_phone_number(data, dict_user):
+    if len(data) == 2:
+        name, new_phone = data
+        if name in dict_user:
+            dict_user[name] = new_phone
+            return f'Phone updated.'
         else:
-            raise ValueError("Phone number not found")
+            return f"Contact {name} not found."
+    else:
+        return "Insufficient information provided."
 
-    def find_phone(self, phone):
-        for p in self.phones:
-            if str(p.value) == str(phone):
-                return p
-        return None
 
-    def set_birthday(self, birthday):
-        if not self.birthday:
-            self.birthday = Birthday(birthday)
-        else:
-            raise ValueError("Birthday already exists")
+@input_error
+def show_phone_number(data, dict_user):
+    name = ' '.join(data)
+    if name in dict_user:
+        return f"Phone number for {name}: {dict_user[name]}"
+    else:
+        return f"It's not enougth information."
 
-    def days_to_birthday(self):
-        if self.birthday:
-            today = datetime.now().date()
-            next_birthday_year = today.year
-            birthday_date = datetime.strptime(str(self.birthday.value), '%Y-%m-%d').date().replace(year=next_birthday_year)
-            if today > birthday_date:
-                birthday_date = birthday_date.replace(year=next_birthday_year + 1)
-            return (birthday_date - today).days
-        else:
-            return None
+@input_error
+def show_all(dict_user):
+    if dict_user:
+        return '\n'.join([f"{name}: {phone}" for name, phone in dict_user.items()])
+    else:
+        return "No contacts available."
 
-class AddressBook(UserDict):
-    def add_record(self, record):
-        self.data[record.name.value] = record
+@input_error
+def hello():
+    return "How can I help you?"
 
-    def find(self, name):
-        if name in self.data:
-            return self.data[name]
-        else:
-            return None
+@input_error
+def good_bye():
+    return "Good bye!"
 
-    def delete(self, name):
-        if name in self.data:
-            del self.data[name]
-            return True
-        else:
-            return False
 
-    def iterator(self, n):
-        record_list = list(self.data.values())
-        for i in range(0, len(record_list), n):
-            yield record_list[i:i + n]
+def commands():
+    return {
+        'hello': hello,
+        'add': saving,
+        'change': change_phone_number,
+        'phone': show_phone_number,
+        'show': show_all,
+        'good': good_bye,
+        'close': good_bye,
+        'exit': good_bye
+    }
 
-    def save_to_disk(self, file_path):
-        with open(file_path, 'wb') as file:
-            pickle.dump(self.data, file)
-            
-    def add(self, name, phones, birthday=None):
-        record = Record(name, birthday)
-        for phone in phones:
-            record.add_phone(phone)
-        self.add_record(record)
+@input_error
+def handle_command(command, dict_user):
+    parts = command.split()
+    action = parts[0]
 
-    def change(self, name, old_phone, new_phone):
-        record = self.find(name)
-        if record:
-            record.edit_phone(old_phone, new_phone)
-        else:
-            raise ValueError("Contact not found")
-
-    def phone(self, name):
-        record = self.find(name)
-        if record:
-            return [str(phone) for phone in record.phones]
-        else:
-            return None
-
-    def find(self, name):
-        return self.data.get(name)
-
-    def show_all(self):
-        return list(self.data.values())
-
-    @classmethod
-    def load_from_disk(cls, file_path):
-        address_book = cls()
+    if len(parts) > 0 and action in ['add', 'change', 'phone']:
         try:
-            with open(file_path, 'rb') as file:
-                address_book.data = pickle.load(file)
-        except FileNotFoundError:
-            pass
-        return address_book
+            if action in ['add', 'change', 'phone']:
+                return commands()[action](parts[1:], dict_user)
+        except ValueError as e:
+            return str(e)
+    else:
+        if action == 'show':
+            if len(parts) == 1:  
+                return "It's not enough information."
+            elif len(parts) > 1 and parts[1] == 'all':
+                return commands()['show'](dict_user)
+            else:
+                return commands()['show'](parts[1:], dict_user)
+        elif action == 'good':
+            return "Sorry, I didn't understand you."
+        elif action in commands():
+            return commands()[action]()
+        else:
+            return "Sorry, I didn't understand you."
 
-    def search_contacts(self, query):
-        matching_contacts = []
-        for record in self.data.values():
-            if query in str(record.name) or any(query in str(phone.value) for phone in record.phones):
-                matching_contacts.append(record)
-        return matching_contacts
 
-address_book = AddressBook()
+    parts = command.split()
+    action = parts[0]
 
-phones = ["1112223333", "4445556666"]
-address_book.add("Jane Smith", phones, "1995-12-12")
+    if len(parts) > 1 and action in ['add', 'change', 'phone']:
+        try:
+            if action in ['add', 'change', 'phone']:
+                return commands()[action](parts[1:], dict_user)
+        except ValueError as e:
+            return str(e)
+    else:
+        if action in commands():
+            if action == 'show' and len(parts) > 1 and parts[1] == 'all':
+                return commands()[action](dict_user)  
+            else:
+                return commands()[action]()
+        else:
+            return "Sorry.I didn't understand."
 
-address_book.change("Jane Smith", "1112223333", "7778889999")
 
-print(address_book.phone("Jane Smith"))
+def read_data_from_file(file_name):
+    address_book_data = {}
+    with open(file_name, 'r') as file:
+        for line in file:
+            if ':' in line:
+                name, phone = line.strip().split(':')
+                address_book_data[name] = phone
+            else:
+                print(f"Issue with line: {line}. It doesn't have the expected format.")
+    return address_book_data
 
-result = address_book.find("Alice Smith")
-if result:
-    print(f"Found contact: {result.name} - {result.phones}")
+def write_data_to_file(file_name, data):
+    with open(file_name, 'w') as file:
+        for name, phone in data.items():
+            file.write(f"{name}:{phone}\n")
 
-all_contacts = address_book.show_all()
-for contact in all_contacts:
-    print(contact.name, contact.phones)
+def save_contact(data, dict_user):
+    name, phone = data
+    record = Record(name)
+    record.add_phone(phone)
+    dict_user[name] = record
+    return f"Contact added."
+
+def update_phone_number(data, dict_user):
+    name, new_phone = data
+    record = dict_user.get(name)
+    if record:
+        record.phones = [new_phone]
+        return f'Phone updated.'
+    else:
+        return f"Contact {name} not found."
+
+def show_phone(data, dict_user):
+    name = ' '.join(data)
+    record = dict_user.get(name)
+    if record:
+        return f"Phone number for {name}: {record.phones[0]}"
+    else:
+        return f"Contact {name} not found."
+
+def on_program_exit(file_name, dict_user):
+    data_to_write = {record.name: record.phones[0] for record in dict_user.values()}
+    write_data_to_file(file_name, data_to_write)
+
+def main():
+    file_name = "address_book_data.pkl" 
+    address_book_data = read_data_from_file(file_name)
+    address_book = AddressBook(address_book_data)
+
+    while True:
+        question = input('>> ').lower().strip()
+        result = handle_command(question, address_book)
+        print(result)
+        if result == "Good bye!":
+            break 
+
+    write_data_to_file(file_name, address_book.data)
+
+if __name__ == '__main__':
+    main()
